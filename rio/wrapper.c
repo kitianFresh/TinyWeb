@@ -1,5 +1,6 @@
 #include "error.h"
 #include "rio.h"
+#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>

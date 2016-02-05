@@ -1,3 +1,9 @@
+#backup files
+*.h~
+*.s~
+*.c~
+*.out~
+
 # Object files
 *.o
 *.ko

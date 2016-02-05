@@ -64,7 +64,7 @@ ssize_t rio_readlineb(rio_t* rp, void* usrbuf, size_t maxlen){
 			return -1;    /*Error*/
 	}
 	*bufp = 0;
-	return n;
+	return n-1;
 }
 
 ssize_t rio_readnb(rio_t* rp, void* usrbuf, size_t n){
@@ -72,12 +72,8 @@ ssize_t rio_readnb(rio_t* rp, void* usrbuf, size_t n){
 	ssize_t nread;
 	char *bufp = usrbuf;
 	while(nleft > 0){
-		if((nread = rio_read(rp,bufp,nleft)) < 0){
-			if(errno == EINTR) /*Interrputed by sig handler return*/
-				nread = 0;     /*Call read() again*/
-			else
-				return -1;     /*errno set by read()*/
-		}
+		if((nread = rio_read(rp,bufp,nleft)) < 0)
+			return -1;     /*errno set by read()*/
 		else if(nread == 0)
 			break;             /*EOF*/
 		nleft -= nread;

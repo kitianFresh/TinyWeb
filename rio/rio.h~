@@ -1,5 +1,5 @@
-#ifndef __RIO_H__
-#define __RIO_H__
+#ifndef RIO_H
+#define RIO_H
 #include<sys/types.h>
 
 #define RIO_BUFSIZE 8192

@@ -1,6 +1,17 @@
 #ifndef __WRAPPER_H__
 #define __WRAPPER_H__
-
+#include "error.h"
+#include "rio.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 /* Process control wrappers */
 pid_t Fork(void);
 void Execve(const char *filename, char *const argv[], char *const envp[]);

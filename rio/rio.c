@@ -1,9 +1,5 @@
 #include "rio.h"
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<unistd.h>
-#include<errno.h>
+
 ssize_t rio_readn(int fd, void* usrbuf, size_t n){
 	size_t nleft = n;
 	size_t nread;

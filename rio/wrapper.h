@@ -12,6 +12,27 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+
+/* Default file permissions are DEF_MODE & ~DEF_UMASK */
+/* $begin createmasks */
+#define DEF_MODE   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH
+#define DEF_UMASK  S_IWGRP|S_IWOTH
+/* $end createmasks */
+
+/* Simplifies calls to bind(), connect(), and accept() */
+/* $begin sockaddrdef */
+typedef struct sockaddr SA;
+/* $end sockaddrdef */
+
+/* External variables */
+extern int h_errno;    /* Defined by BIND for DNS errors */ 
+extern char **environ; /* Defined by libc */
+
+/* Misc constants */
+#define	MAXLINE	 8192  /* Max text line length */
+#define MAXBUF   8192  /* Max I/O buffer size */
+#define LISTENQ  1024  /* Second argument to listen() */
+
 /* Process control wrappers */
 pid_t Fork(void);
 void Execve(const char *filename, char *const argv[], char *const envp[]);
@@ -69,4 +90,23 @@ void Fputs(const char *ptr, FILE *stream);
 size_t Fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
 void Fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 
+/* Sockets interface wrappers */
+int Socket(int domain, int type, int protocol);
+void Setsockopt(int s, int level, int optname, const void *optval, int optlen);
+void Bind(int sockfd, struct sockaddr *my_addr, int addrlen);
+void Listen(int s, int backlog);
+int Accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+void Connect(int sockfd, struct sockaddr *serv_addr, int addrlen);
+
+/* DNS wrappers */
+struct hostent *Gethostbyname(const char *name);
+struct hostent *Gethostbyaddr(const char *addr, int len, int type);
+
+/* Client/server helper functions */
+int open_clientfd(char *hostname, int portno);
+int open_listenfd(int portno);
+
+/* Wrappers for client/server helper functions */
+int Open_clientfd(char *hostname, int port);
+int Open_listenfd(int port); 
 #endif

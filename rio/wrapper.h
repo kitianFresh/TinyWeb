@@ -2,6 +2,7 @@
 #define __WRAPPER_H__
 #include "error.h"
 #include "rio.h"
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -12,6 +13,10 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */

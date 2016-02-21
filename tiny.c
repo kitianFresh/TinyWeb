@@ -103,7 +103,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs){
 		strcpy(filename, ".");
 		strcat(filename, uri);
 		if (uri[strlen(uri)-1] == '/') /* Is default page */
-			strcat(filename, "home.html");
+			strcat(filename, "resources/text/home.html");
 		return 1;
 	}
 	else {
@@ -143,15 +143,15 @@ void serve_static(int fd, char *filename, int filesize){
 
 void get_filetype(char *filename, char *filetype){
 	if (strstr(filename, ".html"))
-		strcpy(filetype, "text/html");
+		strcpy(filetype, "text/html;charset=utf-8");
 	else if (strstr(filename, ".gif"))
 		strcpy(filetype, "image/gif");
 	else if (strstr(filename, ".jpg"))
 		strcpy(filetype, "image/jpeg");
-	else if (strstr(filename, ".mpg"))
-		strcpy(filename, "video/mpeg");
+	else if (strstr(filename, ".mp4"))
+		strcpy(filetype, "video/mpeg4");
 	else
-		strcpy(filetype, "text/plain");
+		strcpy(filetype, "text/plain;charset=utf-8");
 }
 
 void serve_dynamic(int fd, char *filename, char *cgiargs){

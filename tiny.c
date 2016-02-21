@@ -9,21 +9,24 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 int main(int argc, char **argv){
-	int listenfd, connfd, port, clientlen;
+	int logfd,listenfd, connfd, port, clientlen;
 	struct sockaddr_in clientaddr;
 	
 	struct hostent *hp;
 	char *haddrp;
-
+	
 	/* Check command line args */
 	if(2 != argc){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
 		exit(1);
 	}
 	port = atoi(argv[1]);
+	logfd = Open("./weblog/logs.txt", 
+		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
+	Dup2(logfd,STDOUT_FILENO);
 
 	listenfd = Open_listenfd(port);
-	fprintf(stdout, "Tiny Open_listenfd: %d\n", listenfd);
+	fprintf(stdout, "Tiny started at port %d\n\n", port);
 	while(1){
 		clientlen = sizeof(clientaddr);
 		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
@@ -35,6 +38,7 @@ int main(int argc, char **argv){
 		fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
 		
 		doit(connfd);
+		fflush(stdout);
 		Close(connfd);
 	}
 }
@@ -54,6 +58,7 @@ void doit(int fd){
 		clienterror(fd, method, "501", "Not Implemented", "Tiny has not implemented this method yet, you can tell kikifly");
 		return;
 	}
+	fprintf(stdout, "%s", buf);
 	read_requesthdrs(&rio);
 
 	/* Parse URI from GET request */
@@ -82,10 +87,10 @@ void doit(int fd){
 void read_requesthdrs(rio_t *rp){
 	char buf[MAXLINE];
 
-	fprintf(stdout, "Tiny read request header:\n");
+	//fprintf(stdout, "Tiny read request header:\n");
 	while(strcmp(buf, "\r\n")){
 		Rio_readlineb(rp, buf, MAXLINE);
-		printf("%s", buf);
+		fprintf(stdout, "%s", buf);
 	}
 	return;
 }
@@ -123,7 +128,7 @@ void serve_static(int fd, char *filename, int filesize){
 	/* Send response line and headers to client */
 	get_filetype(filename, filetype);
 	sprintf(buf, "HTTP/1.1 200 OK\r\n");
-	sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+	sprintf(buf, "%sServer: Tiny Web Server by kikifly\r\n", buf);
 	sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
 	sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
 	Rio_writen(fd, buf, strlen(buf));

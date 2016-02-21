@@ -148,6 +148,8 @@ void get_filetype(char *filename, char *filetype){
 		strcpy(filetype, "image/gif");
 	else if (strstr(filename, ".jpg"))
 		strcpy(filetype, "image/jpeg");
+	else if (strstr(filename, ".mpg"))
+		strcpy(filename, "video/mpeg");
 	else
 		strcpy(filetype, "text/plain");
 }
@@ -175,10 +177,11 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
 	/* Build the HTTP response body */
 	sprintf(body, "<html><title>Tiny Error</title>");
-	sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
+	sprintf(body, "%s<body bgcolor=""ff0000"">\r\n", body);
 	sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
 	sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-	sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+	sprintf(body, "%s<hr><em>The Tiny Web server By kikifly</em>\r\n", 
+			body);
 
 	/*Print the HTTP response */
 	sprintf(buf, "HTTP/1.1 %s %s\r\n", errnum, shortmsg);

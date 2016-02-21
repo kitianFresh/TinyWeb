@@ -445,11 +445,16 @@ int open_clientfd(char* hostname, int port)
 		return -1;
 	return clientfd;
 }
-/* $Begin open_listenfd */
+/*  
+ * open_listenfd - open and return a listening socket on port
+ *     Returns -1 and sets errno on Unix error.
+ */
+/* $begin open_listenfd */
 int open_listenfd(int port)
 {
 	int listenfd,optval = 1;
 	struct sockaddr_in serveraddr;
+	
 	/* Create a socket descriptor */
 	if((listenfd = socket(AF_INET,SOCK_STREAM,0)) < 0)
 		return -1;

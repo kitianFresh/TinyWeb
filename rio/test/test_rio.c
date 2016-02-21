@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "../wrapper.h"
-#define MAXLINE 8192
 
 int main(int argc, char **argv){
 	int n,fd;

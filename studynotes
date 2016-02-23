@@ -1,13 +1,20 @@
 2016-02-21 
 Q1
-STDIN_FILENO STDOUT_FILENO STDERR_FILENO和stdin stdout stderr的区别
-  前者是宏定义，在unistd.h系统库中，分别指向一个整数，也就是fd，一般系统默认对应 0 1 2；UNIX IO如read write dup2等都是用这个
-  后者是流STREAM（带缓冲区）FILE，在标准IO库中，fprintf等参数使用
+STDIN_FILENO STDOUT_FILENO STDERR_FILENO和stdin stdout stderr的区别？
+    前者是宏定义，在unistd.h系统库中，分别指向一个整数，也就是fd，一般系统默认对应 0 1 2；UNIX IO如read write dup2等都是用这个；
+    后者是流STREAM（带缓冲区）FILE，在标准IO库中，fprintf等参数使用；
 
 Q2
-在调用dup2将标准输出重定向到文件后，使用printf或者fprintf输出，文件中不会立即出现结果
-  因为fprintf是C标准库中的，带有缓冲，所以无法立即写入，除非使用系统调用write，或者用fflush刷新。
+在调用dup2将标准输出重定向到文件后，使用printf或者fprintf输出，文件中不会立即出现结果？
+    因为fprintf是C标准库中的，带有缓冲，所以无法立即写入，除非使用系统调用write，或者用fflush刷新；
 
-Q3
-在直接从chrome浏览器输入静态内容请求URI时，可能会发生第一次请求没问题，但是第二次就会出问题，使得logs.txt变得很大，且输出的都是serve_static函数里调用sprintf并用write写回客户端的内容，即本应该返回给客户端，但是却写入到了logs.txt中（但是logs.txt文件），使得logs.txt巨大而撑爆磁盘; 但是firefox浏览器却没问题
-    本以为是get_filetype处理文件类型出问题，导致返回的响应头中Content-type和实际类型不符合，使得浏览器无法正确处理对应的文件；但是改过来后还是会随机出现该问题
+Q3***?
+在直接从chrome浏览器输入静态内容请求URI时，可能会发生第一次请求没问题，但是第二次就会出问题，使得logs.txt变得很大，且输出的都是serve_static函数里调用sprintf并用write写回客户端的内容，即本应该返回给客户端，但是却写入到了logs.txt中（但是logs.txt文件），使得logs.txt巨大而撑爆磁盘; 但是firefox浏览器却没问题？
+    本以为是get_filetype处理文件类型出问题，导致返回的响应头中Content-type的MIME值和实际类型不符合，使得浏览器无法正确处理对应的文件；但是改过来后还是会随机出现该问题,可能服务器的IO处理还是不健壮
+
+2012-02-22
+Notes1
+    1.fork子进程时，不用wait显式的等待子进程终止，而是采用信号机制，异步的处理子进程终止时的SIGCHLD信号；
+    2.如果进程捕捉信号，那么必须处理被中断的系统调用；
+    3.注意SIGCHLD信号处理函数的编写，必须使用waitpid（而不是wait）避免留下僵尸进程。因为wait会因为没有收到子进程终止信号而阻塞，但是waitpid可以设置WNOHANG选项避免；
+

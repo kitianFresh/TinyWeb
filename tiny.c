@@ -7,6 +7,8 @@ void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+void handler(int sig);
+
 
 int main(int argc, char **argv){
 	int logfd,listenfd, connfd, port, clientlen;
@@ -15,6 +17,7 @@ int main(int argc, char **argv){
 	struct hostent *hp;
 	char *haddrp;
 	
+	Signal(SIGCHLD, handler); /* Register signal to handle child process */
 	/* Check command line args */
 	if(2 != argc){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -162,14 +165,16 @@ void serve_dynamic(int fd, char *filename, char *cgiargs){
 	Rio_writen(fd, buf, strlen(buf));
 	sprintf(buf, "Server: Tiny Web Server by kikifly\r\n");
 	Rio_writen(fd, buf, strlen(buf));
-
+	
+	
 	if (Fork() == 0) {
 		/* Real server would set all CGI vars here */
 		setenv("QUERY_STRING", cgiargs, 1);
 		Dup2(fd, STDOUT_FILENO); /* Redirect stdout to client */
 		Execve(filename, emptylist, environ); /* Run CGI program */
+		//exit(0);
 	}
-	Wait(NULL);  /*Parent waits for and reaps child */
+	//Wait(NULL);  /*Parent waits for and reaps child */
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg){
@@ -191,4 +196,14 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 	sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
 	Rio_writen(fd, buf, strlen(buf));
 	Rio_writen(fd, body, strlen(body));
+}
+
+void handler(int sig){
+	pid_t pid;
+
+	while ((pid = Waitpid(-1,NULL,WNOHANG)) > 0)
+		printf("Handler reaped child %d\n", (int)pid);
+	
+	//Sleep(2);
+	return;
 }

@@ -12,9 +12,16 @@ Q3***?
 在直接从chrome浏览器输入静态内容请求URI时，可能会发生第一次请求没问题，但是第二次就会出问题，使得logs.txt变得很大，且输出的都是serve_static函数里调用sprintf并用write写回客户端的内容，即本应该返回给客户端，但是却写入到了logs.txt中（但是logs.txt文件），使得logs.txt巨大而撑爆磁盘; 但是firefox浏览器却没问题？
     本以为是get_filetype处理文件类型出问题，导致返回的响应头中Content-type的MIME值和实际类型不符合，使得浏览器无法正确处理对应的文件；但是改过来后还是会随机出现该问题,可能服务器的IO处理还是不健壮
 
-2012-02-22
+2016-02-22
 Notes1
+引入UNIX信号机制处理子进程回收；
     1.fork子进程时，不用wait显式的等待子进程终止，而是采用信号机制，异步的处理子进程终止时的SIGCHLD信号；
     2.如果进程捕捉信号，那么必须处理被中断的系统调用；
     3.注意SIGCHLD信号处理函数的编写，必须使用waitpid（而不是wait）避免留下僵尸进程。因为wait会因为没有收到子进程终止信号而阻塞，但是waitpid可以设置WNOHANG选项避免；
+
+2016-02-23
+续2016-02-21Q3
+Q1总是出现waitpid error:no child process?
+    修改了wrapper.c中的Waitpid，检测errno是否等于ECHLD;原来的版本是直接通过waitpid的返回值判断是否出错，但是仅仅是返回-1并不一定就出错，当errno没有被设置为ECHLD时，waitpid返回-1才是出错了；
+
 

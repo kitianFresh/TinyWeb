@@ -11,7 +11,7 @@ void handler(int sig);
 
 
 int main(int argc, char **argv){
-	int logfd,listenfd, connfd, port, clientlen;
+	int logfd, listenfd, connfd, port, clientlen, childpid=0;
 	struct sockaddr_in clientaddr;
 	
 	struct hostent *hp;
@@ -29,19 +29,22 @@ int main(int argc, char **argv){
 	Dup2(logfd,STDOUT_FILENO);
 
 	listenfd = Open_listenfd(port);
-	fprintf(stdout, "Tiny started at port %d\n\n", port);
+	//fprintf(stdout, "Tiny started at port %d\n\n", port);
 	while(1){
 		clientlen = sizeof(clientaddr);
 		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
-		fprintf(stdout, "Tiny Accepted and got connfd: %d\n", connfd);
-		
-		hp = Gethostbyaddr((const char*)&clientaddr.sin_addr.s_addr, 
+		//if(errno == EINTR) continue;
+		if ((childpid = Fork()) == 0){ /* child process*/
+			Close(listenfd);/* close listening socket,child process no need*/
+			fprintf(stdout, "Tiny Accepted and got connfd: %d\n", connfd);
+			hp = Gethostbyaddr((const char*)&clientaddr.sin_addr.s_addr, 
 				sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-		haddrp = inet_ntoa(clientaddr.sin_addr);
-		fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
-		
-		doit(connfd);
-		fflush(stdout);
+			haddrp = inet_ntoa(clientaddr.sin_addr);
+			fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
+			doit(connfd);
+			fflush(stdout);
+			exit(0);
+		}
 		Close(connfd);
 	}
 }
@@ -200,9 +203,14 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
 void handler(int sig){
 	pid_t pid;
-
-	while ((pid = Waitpid(-1,NULL,WNOHANG)) > 0)
+	int status;
+	while ((pid = Waitpid(-1,&status,WNOHANG | WUNTRACED)) > 0){
 		printf("Handler reaped child %d\n", (int)pid);
+		if (WIFEXITED(status))
+			printf("child %d terminated normally with exit status=%d\n",pid,WEXITSTATUS(status));
+		else
+			printf("child %d terminated abnormally\n",pid);
+	}
 	
 	//Sleep(2);
 	return;

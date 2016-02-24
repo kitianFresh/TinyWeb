@@ -13,7 +13,7 @@ handler_t *Signal(int signum, handler_t *handler)
     action.sa_flags = SA_RESTART; /* Restart syscalls if possible */
 
     if (sigaction(signum, &action, &old_action) < 0)
-	unix_error("Signal error");
+		unix_error("Signal error");
     return (old_action.sa_handler);
 }
 /* $end sigaction */
@@ -21,35 +21,35 @@ handler_t *Signal(int signum, handler_t *handler)
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
     if (sigprocmask(how, set, oldset) < 0)
-	unix_error("Sigprocmask error");
+		unix_error("Sigprocmask error");
     return;
 }
 
 void Sigemptyset(sigset_t *set)
 {
     if (sigemptyset(set) < 0)
-	unix_error("Sigemptyset error");
+		unix_error("Sigemptyset error");
     return;
 }
 
 void Sigfillset(sigset_t *set)
 { 
     if (sigfillset(set) < 0)
-	unix_error("Sigfillset error");
+		unix_error("Sigfillset error");
     return;
 }
 
 void Sigaddset(sigset_t *set, int signum)
 {
     if (sigaddset(set, signum) < 0)
-	unix_error("Sigaddset error");
+		unix_error("Sigaddset error");
     return;
 }
 
 void Sigdelset(sigset_t *set, int signum)
 {
     if (sigdelset(set, signum) < 0)
-	unix_error("Sigdelset error");
+		unix_error("Sigdelset error");
     return;
 }
 
@@ -57,7 +57,7 @@ int Sigismember(const sigset_t *set, int signum)
 {
     int rc;
     if ((rc = sigismember(set, signum)) < 0)
-	unix_error("Sigismember error");
+		unix_error("Sigismember error");
     return rc;
 }
 
@@ -190,7 +190,7 @@ int Open(const char *pathname, int flags, mode_t mode)
     int rc;
 
     if ((rc = open(pathname, flags, mode))  < 0)
-	unix_error("Open error");
+		unix_error("Open error");
     return rc;
 }
 
@@ -199,7 +199,7 @@ ssize_t Read(int fd, void *buf, size_t count)
     ssize_t rc;
 
     if ((rc = read(fd, buf, count)) < 0) 
-	unix_error("Read error");
+		unix_error("Read error");
     return rc;
 }
 
@@ -208,7 +208,7 @@ ssize_t Write(int fd, const void *buf, size_t count)
     ssize_t rc;
 
     if ((rc = write(fd, buf, count)) < 0)
-	unix_error("Write error");
+		unix_error("Write error");
     return rc;
 }
 
@@ -217,7 +217,7 @@ off_t Lseek(int fildes, off_t offset, int whence)
     off_t rc;
 
     if ((rc = lseek(fildes, offset, whence)) < 0)
-	unix_error("Lseek error");
+		unix_error("Lseek error");
     return rc;
 }
 
@@ -233,9 +233,12 @@ int Select(int  n, fd_set *readfds, fd_set *writefds,
 	   fd_set *exceptfds, struct timeval *timeout) 
 {
     int rc;
-
+again:
     if ((rc = select(n, readfds, writefds, exceptfds, timeout)) < 0)
-	unix_error("Select error");
+		if (errno == EINTR)
+			goto again;
+		else
+			unix_error("Select error");
     return rc;
 }
 
@@ -244,20 +247,20 @@ int Dup2(int fd1, int fd2)
     int rc;
 
     if ((rc = dup2(fd1, fd2)) < 0)
-	unix_error("Dup2 error");
+		unix_error("Dup2 error");
     return rc;
 }
 
 void Stat(const char *filename, struct stat *buf) 
 {
     if (stat(filename, buf) < 0)
-	unix_error("Stat error");
+		unix_error("Stat error");
 }
 
 void Fstat(int fd, struct stat *buf) 
 {
     if (fstat(fd, buf) < 0)
-	unix_error("Fstat error");
+		unix_error("Fstat error");
 }
 
 /*********************************

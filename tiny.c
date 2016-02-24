@@ -43,9 +43,10 @@ int main(int argc, char **argv){
 			fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
 			doit(connfd);
 			fflush(stdout);
+			Close(connfd);/*child closes connection with client*/
 			exit(0);
 		}
-		Close(connfd);
+		Close(connfd);/* parents closing connected socket*/
 	}
 }
 

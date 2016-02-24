@@ -1,2 +1,3 @@
 # TinyWeb
-this my project for studying web server 
+This is a branch of Tiny:
+	This branch uses IO complexing to dispose multi-clients;

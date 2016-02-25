@@ -8,16 +8,17 @@ void get_filetype(char *filename, char *filetype);
 void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void handler(int sig);
-
+void *thread(void *vargp); /* Thread routine*/
 
 int main(int argc, char **argv){
-	int logfd, listenfd, connfd, port, clientlen, childpid=0;
+	int logfd, listenfd, *connfdp, port, clientlen, childpid=0;
 	struct sockaddr_in clientaddr;
-	
+	pthread_t tid;
 	struct hostent *hp;
 	char *haddrp;
 	
 	Signal(SIGCHLD, handler); /* Register signal to handle child process */
+	
 	/* Check command line args */
 	if(2 != argc){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -29,27 +30,28 @@ int main(int argc, char **argv){
 	Dup2(logfd,STDOUT_FILENO);
 
 	listenfd = Open_listenfd(port);
+	clientlen = sizeof(clientaddr);
 	//fprintf(stdout, "Tiny started at port %d\n\n", port);
 	while(1){
-		clientlen = sizeof(clientaddr);
-		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
-		//if(errno == EINTR) continue;
-		if ((childpid = Fork()) == 0){ /* child process*/
-			Close(listenfd);/* close listening socket,child process no need*/
-			fprintf(stdout, "Tiny Accepted and got connfd: %d\n", connfd);
-			hp = Gethostbyaddr((const char*)&clientaddr.sin_addr.s_addr, 
-				sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-			haddrp = inet_ntoa(clientaddr.sin_addr);
-			fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
-			doit(connfd);
-			fflush(stdout);
-			Close(connfd);/*child closes connection with client*/
-			exit(0);
-		}
-		Close(connfd);/* parents closing connected socket*/
+		connfdp = Malloc(sizeof(int));
+		*connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);
+		//fprintf(stdout, "Tiny Accepted and got connfd: %d\n", *connfdp);
+		//hp = Gethostbyaddr((const char*)&clientaddr.sin_addr.s_addr, 
+				//sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+		//haddrp = inet_ntoa(clientaddr.sin_addr);
+		//fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
+		Pthread_create(&tid, NULL, thread, connfdp);
 	}
 }
-
+void *thread(void *vargp){
+	int connfd = *((int *)vargp);
+	Pthread_detach(Pthread_self());
+	Free(vargp);
+	doit(connfd);
+	fflush(stdout);
+	Close(connfd);
+	return NULL;
+}
 void doit(int fd){
 	int is_static;
 	struct stat sbuf;

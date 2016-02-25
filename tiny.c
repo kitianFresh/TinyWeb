@@ -18,7 +18,7 @@ int main(int argc, char **argv){
 	char *haddrp;
 	
 	Signal(SIGCHLD, handler); /* Register signal to handle child process */
-	
+	Signal(SIGPIPE, SIG_IGN); /* Ignore SIGPIPE to avoid process exit*/
 	/* Check command line args */
 	if(2 != argc){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);

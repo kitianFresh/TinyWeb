@@ -17,7 +17,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <signal.h>
-
+#include <pthread.h>
 
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */
@@ -38,6 +38,16 @@ extern char **environ; /* Defined by libc */
 #define	MAXLINE	 8192  /* Max text line length */
 #define MAXBUF   8192  /* Max I/O buffer size */
 #define LISTENQ  1024  /* Second argument to listen() */
+
+/* Pthreads thread control wrappers */
+void Pthread_create(pthread_t *tidp, pthread_attr_t *attrp, 
+		    void * (*routine)(void *), void *argp);
+void Pthread_join(pthread_t tid, void **thread_return);
+void Pthread_cancel(pthread_t tid);
+void Pthread_detach(pthread_t tid);
+void Pthread_exit(void *retval);
+pthread_t Pthread_self(void);
+void Pthread_once(pthread_once_t *once_control, void (*init_function)());
 
 /* Signal wrappers */
 typedef void handler_t(int);

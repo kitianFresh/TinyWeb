@@ -1,4 +1,26 @@
 #include "wrapper.h"
+/*******************************
+ * Wrappers for Posix semaphores
+ *******************************/
+
+void Sem_init(sem_t *sem, int pshared, unsigned int value) 
+{
+    if (sem_init(sem, pshared, value) < 0)
+	unix_error("Sem_init error");
+}
+
+void P(sem_t *sem) 
+{
+    if (sem_wait(sem) < 0)
+	unix_error("P error");
+}
+
+void V(sem_t *sem) 
+{
+    if (sem_post(sem) < 0)
+	unix_error("V error");
+}
+
 /************************************************
  * Wrappers for Pthreads thread control functions
  ************************************************/

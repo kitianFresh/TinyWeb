@@ -24,8 +24,8 @@ Notes1
 Q1总是出现waitpid error:no child process?
     修改了wrapper.c中的Waitpid，检测errno是否等于ECHLD;原来的版本是直接通过waitpid的返回值判断是否出错，但是仅仅是返回-1并不一定就出错，当errno没有被设置为ECHLD时，waitpid返回-1才是出错了；
 
-2016-02-24
-建立分支，使用IO的多路复用替代多进程并发服务器
+2016-02-24 
+Notes:建立分支，使用IO的多路复用替代多进程并发服务器
 Q1:请求动态内容时，select系统调用总是被中断？
     因为父进程注册了信号处理函数，捕获了信号，导致系统调用被中断；解决办法是在设置信号的时候用SA_RESTART设置系统调用中断自重启，或者手动判断errno重启；当然还有忽略信号（让系统不产生信号中断）；不过自动重启并不是所有的系统调用都可以，依赖于不同的系统，man 7 signal查看本机上select系统调用就不支持自动重启，因此必须手动重启；
 Interruption of system calls and library functions by signal handlers
@@ -47,4 +47,14 @@ Interruption of system calls and library functions by stop signals
        interfaces can fail with the error EINTR after the process  is  stopped
        by one of the stop signals and then resumed via SIGCONT.  This behavior
        is not sanctioned by POSIX.1, and doesn't occur on other systems.
+    关于select函数的一些细节：
+	1.select函数是值-结果参数，也就是参数FD_SET会被修改作为函数调用的结果，因此重复调用前必须每次重新设置FD_SET恢复
+	2.select会在调用时进入内核阻塞，当有一个或者多个IO事件发生，内核就会返回结果；此时再调用系统IO也可能会阻塞，因为内核需要将数据复制到用户空间
+	3.select函数的判断条件是read等系统调用的发生条件，而不是fread等带缓冲区的stdio可读写条件，stdio带有缓冲区，因此当select无法检测到条件时，stdio中可能还有数据未读取；因此混合使用select和stdio不被建议；
+
+2016-02-25
+Notes:建立分支，使用多线程并发服务器
+Q1:出现Broken pipe错误？
+    对一个对端已经关闭的socket调用两次write, 第二次将会生成SIGPIPE信号, 该信号默认结束进程.具体的分析可以结合TCP的"四次握手"关闭. TCP是全双工的信道, 可以看作两条单工信道, TCP连接两端的两个端点各负责一条. 当对端调用close时, 虽然本意是关闭整个两条信道, 但本端只是收到FIN包. 按照TCP协议的语义, 表示对端只是关闭了其所负责的那一条单工信道, 仍然可以继续接收数据. 也就是说, 因为TCP协议的限制, 一个端点无法获知对端的socket是调用了close还是shutdown.对一个已经收到FIN包的socket调用read方法, 如果接收缓冲已空, 则返回0, 这就是常说的表示连接关闭. 但第一次对其调用write方法时, 如果发送缓冲没问题, 会返回正确写入(发送). 但发送的报文会导致对端发送RST报文, 因为对端的socket已经调用了close, 完全关闭, 既不发送, 也不接收数据. 所以, 第二次调用write方法(假设在收到RST之后), 会生成SIGPIPE信号, 导致进程退出.
+    因此需要捕获并处理该信号，同时查看write系统调用是否有EPIPE错误；
 

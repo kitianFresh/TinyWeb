@@ -18,7 +18,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <pthread.h>
-#include <samephore.h>
+#include <semaphore.h>
 
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */

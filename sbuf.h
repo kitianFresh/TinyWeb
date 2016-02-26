@@ -1,6 +1,6 @@
 #ifndef __SBUF_H__
 #define __SBUF_H__
-#incldue "./rio/wrapper.h"
+#include "./rio/wrapper.h"
 /* PV sbuf*/
 typedef struct {
 	int *buf;		/* Buffer array */

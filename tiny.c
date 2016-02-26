@@ -1,4 +1,7 @@
 #include "rio/wrapper.h"
+#include "sbuf.h"
+#define NTHREADS 8
+#define SBUFSIZE 32
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -10,8 +13,10 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 void handler(int sig);
 void *thread(void *vargp); /* Thread routine*/
 
+sbuf_t sbuf; /*Shared buffer of connected descriptors */
+
 int main(int argc, char **argv){
-	int logfd, listenfd, *connfdp, port, clientlen, childpid=0;
+	int logfd, listenfd, connfd, port, clientlen, i;
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 	struct hostent *hp;
@@ -28,29 +33,32 @@ int main(int argc, char **argv){
 	logfd = Open("./weblog/logs.txt", 
 		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
 	Dup2(logfd,STDOUT_FILENO);
-
+	
+	sbuf_init(&sbuf, SBUFSIZE);
 	listenfd = Open_listenfd(port);
 	clientlen = sizeof(clientaddr);
-	//fprintf(stdout, "Tiny started at port %d\n\n", port);
+	
+	fprintf(stdout, "Tiny started at port %d\n\n", port);
+	for (i = 0; i < NTHREADS; i++) {	/* Create worker threads */
+		Pthread_create(&tid, NULL, thread, NULL);
+		fprintf(stdout, "Tiny create thread %ld\n", (unsigned long)tid);
+	}
+	fflush(stdout);
 	while(1){
-		connfdp = Malloc(sizeof(int));
-		*connfdp = Accept(listenfd, (SA*)&clientaddr, &clientlen);
-		//fprintf(stdout, "Tiny Accepted and got connfd: %d\n", *connfdp);
-		//hp = Gethostbyaddr((const char*)&clientaddr.sin_addr.s_addr, 
-				//sizeof(clientaddr.sin_addr.s_addr), AF_INET);
-		//haddrp = inet_ntoa(clientaddr.sin_addr);
-		//fprintf(stdout, "Tiny connected to %s (%s)\n", hp->h_name, haddrp);
-		Pthread_create(&tid, NULL, thread, connfdp);
+		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
+		sbuf_insert(&sbuf, connfd);
 	}
 }
 void *thread(void *vargp){
-	int connfd = *((int *)vargp);
-	Pthread_detach(Pthread_self());
-	Free(vargp);
-	doit(connfd);
-	fflush(stdout);
-	Close(connfd);
-	return NULL;
+	int connfd;
+	Pthread_detach(Pthread_self());/* detach itself from main thread */
+	while(1) { 
+		connfd = sbuf_remove(&sbuf);/* Remove connfd from buffer */
+		fprintf(stdout, "Thread %ld dispose connfd %d\n",(unsigned long)Pthread_self(),connfd);
+		doit(connfd);				/* Service client */
+		fflush(stdout);
+		Close(connfd);				/* Clear client fd */
+	}
 }
 void doit(int fd){
 	int is_static;

@@ -16,12 +16,13 @@ void *thread(void *vargp); /* Thread routine*/
 sbuf_t sbuf; /*Shared buffer of connected descriptors */
 
 int main(int argc, char **argv){
-	int logfd, listenfd, connfd, port, clientlen, i;
+	int logfd, listenfd, connfd, clientlen, i;
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 	struct hostent *hp;
-	char *haddrp;
-	
+	char *haddrp,*port;
+	char hostname[MAXLINE], portclient[MAXLINE];
+
 	Signal(SIGCHLD, handler); /* Register signal to handle child process */
 	Signal(SIGPIPE, SIG_IGN); /* Ignore SIGPIPE to avoid process exit*/
 	/* Check command line args */
@@ -29,7 +30,7 @@ int main(int argc, char **argv){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
 		exit(1);
 	}
-	port = atoi(argv[1]);
+	port = argv[1];
 	logfd = Open("./weblog/logs.txt", 
 		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
 	Dup2(logfd,STDOUT_FILENO);
@@ -38,7 +39,7 @@ int main(int argc, char **argv){
 	listenfd = Open_listenfd(port);
 	clientlen = sizeof(clientaddr);
 	
-	fprintf(stdout, "Tiny started at port %d\n\n", port);
+	fprintf(stdout, "Tiny started at port %s\n\n", port);
 	for (i = 0; i < NTHREADS; i++) {	/* Create worker threads */
 		Pthread_create(&tid, NULL, thread, NULL);
 		fprintf(stdout, "Tiny create thread %ld\n", (unsigned long)tid);
@@ -46,6 +47,9 @@ int main(int argc, char **argv){
 	fflush(stdout);
 	while(1){
 		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
+		Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, 
+                    portclient, MAXLINE, 0);
+        	printf("Accepted connection from (%s, %s)\n", hostname, portclient);
 		sbuf_insert(&sbuf, connfd);
 	}
 }

@@ -1,8 +1,13 @@
 #include "rio/wrapper.h"
 #include "sbuf.h"
+
 #define NTHREADS 8
 #define SBUFSIZE 32
+#define LOCKFILE "/home/kitian/csapp/Tiny_MultiThread/run/tiny.pid"
+#define LOCKMODE (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
 
+int lockfile(int fd);
+int already_runnig(void);
 void daemonize(const char *name);
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -31,11 +36,18 @@ int main(int argc, char **argv){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
 		exit(1);
 	}
+	/* become a daemon */
 	daemonize("tiny");
+
+	/* Make sure only one copy of the daemon is running */
+	if (already_running()) {
+		syslog(LOG_DAEMON|LOG_ERR, "Tiny already running");
+		exit(1);
+	}
+
 	port = argv[1];
 	logfd = Open("/home/kitian/csapp/Tiny_MultiThread/weblog/logs.txt", 
 		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
-	//Dup2(logfd,STDOUT_FILENO);
 	
 	sbuf_init(&sbuf, SBUFSIZE);
 	listenfd = Open_listenfd(port);
@@ -46,7 +58,7 @@ int main(int argc, char **argv){
 		Pthread_create(&tid, NULL, thread, NULL);
 		syslog(LOG_DAEMON|LOG_INFO, "Tiny create thread %ld\n", (unsigned long)tid);
 	}
-	//fflush(stdout);
+
 	while(1){
 		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
 		Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, 
@@ -54,6 +66,33 @@ int main(int argc, char **argv){
         	syslog(LOG_DAEMON|LOG_INFO,"Accepted connection from (%s, %s)\n", hostname, portclient);
 		sbuf_insert(&sbuf, connfd);
 	}
+}
+
+int lockfile(int fd){
+	struct flock fl;
+	fl.l_type = F_WRLCK;
+	fl.l_start = 0;
+	fl.l_whence = SEEK_SET;
+	fl.l_len = 0;
+	return (fcntl(fd, F_SETLK, &fl));
+}
+
+int already_running(void){
+	int fd;
+	char buf[16];
+	fd = Open(LOCKFILE, O_RDWR|O_CREAT, LOCKMODE);
+	if (lockfile(fd) < 0) { /* Check if locked */
+		if (errno == EACCES || errno == EAGAIN) {
+			close(fd);
+			return 1;
+		}
+		syslog(LOG_DAEMON|LOG_ERR,"can't lock %s: %s", LOCKFILE, strerror(errno));
+		exit(1);
+	}
+	ftruncate(fd, 0); /* truncate to clear old content */
+	sprintf(buf,"%ld",(long)getpid());
+	Write(fd,buf,strlen(buf)+1);
+	return 0;
 }
 
 void daemonize(const char *name){

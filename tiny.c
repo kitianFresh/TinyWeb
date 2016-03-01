@@ -1,11 +1,22 @@
 #include "rio/wrapper.h"
 #include "sbuf.h"
 
-#define NTHREADS 8
 #define SBUFSIZE 32
 #define LOCKFILE "/home/kitian/csapp/Tiny_MultiThread/run/tiny.pid"
 #define LOCKMODE (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
 
+#define MAX_PORTNUM 16
+#define MAX_PATH 256
+#define CONF_PATH "/home/kitian/csapp/Tiny_MultiThread/conf/conf"
+#define DELIM "="
+struct config {
+	char port[MAX_PORTNUM];
+	int nthreads;
+	char logpath[MAX_PATH];
+	int fdnum;
+} conf;
+
+void getconf(char *filename);
 int lockfile(int fd);
 int already_runnig(void);
 void daemonize(const char *name);
@@ -26,35 +37,32 @@ int main(int argc, char **argv){
 	struct sockaddr_in clientaddr;
 	pthread_t tid;
 	struct hostent *hp;
-	char *haddrp,*port;
+	char *haddrp;
 	char hostname[MAXLINE], portclient[MAXLINE];
 
-	Signal(SIGCHLD, handler); /* Register signal to handle child process */
-	Signal(SIGPIPE, SIG_IGN); /* Ignore SIGPIPE to avoid process exit*/
-	/* Check command line args */
-	if(2 != argc){
-		fprintf(stderr, "usage: %s <port>\n", argv[0]);
-		exit(1);
-	}
+	
+	
 	/* become a daemon */
 	daemonize("tiny");
-
+	
+	Signal(SIGCHLD, handler); /* Register signal to handle child process */
+	Signal(SIGPIPE, SIG_IGN); /* Ignore SIGPIPE to avoid process exit*/
+	
 	/* Make sure only one copy of the daemon is running */
 	if (already_running()) {
 		syslog(LOG_DAEMON|LOG_ERR, "Tiny already running");
 		exit(1);
 	}
-
-	port = argv[1];
-	logfd = Open("/home/kitian/csapp/Tiny_MultiThread/weblog/logs.txt", 
-		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
+	getconf(CONF_PATH);
+	//logfd = Open("/home/kitian/csapp/Tiny_MultiThread/weblog/logs.txt", 
+	//	O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
 	
 	sbuf_init(&sbuf, SBUFSIZE);
-	listenfd = Open_listenfd(port);
+	listenfd = Open_listenfd(conf.port);
 	clientlen = sizeof(clientaddr);
 	
-	syslog(LOG_DAEMON|LOG_INFO, "Tiny started at port %s\n\n", port);
-	for (i = 0; i < NTHREADS; i++) {	/* Create worker threads */
+	syslog(LOG_DAEMON|LOG_INFO, "Tiny started at port %s\n\n", conf.port);
+	for (i = 0; i < conf.nthreads; i++) {	/* Create worker threads */
 		Pthread_create(&tid, NULL, thread, NULL);
 		syslog(LOG_DAEMON|LOG_INFO, "Tiny create thread %ld\n", (unsigned long)tid);
 	}
@@ -65,6 +73,45 @@ int main(int argc, char **argv){
                     portclient, MAXLINE, 0);
         	syslog(LOG_DAEMON|LOG_INFO,"Accepted connection from (%s, %s)\n", hostname, portclient);
 		sbuf_insert(&sbuf, connfd);
+	}
+}
+
+void getconf(char *filename){
+	FILE *file = fopen(filename,"r");
+	if (NULL != file) {
+		char line[MAXBUF], *cfline, *index;
+		int len;
+		while (fgets(line, sizeof(line), file) != NULL){
+			cfline = line;
+			/* Skip leading whitespace */
+			while (isspace(*cfline)) {
+		    	cfline++;
+			}
+
+			/* Ignore if there is character '#' front */
+			if ('#' == *cfline || '\0' == *cfline) continue;
+			
+			index = strstr((char*)cfline,DELIM);
+			*index = '\0';
+			index ++;
+			len = strlen(index);
+			if (*(index+len-1) == '\n') /* remove char '\n' at the end */
+				*(index+len-1) = '\0';
+			if (!strcasecmp(cfline, "port"))
+				strncpy(conf.port,index,strlen(index));
+			if (!strcasecmp(cfline, "nthreads"))
+				conf.nthreads = atoi(index);
+			if (!strcasecmp(cfline, "logpath"))
+				strncpy(conf.logpath,index, strlen(index));
+			if (!strcasecmp(cfline, "fdnum"))
+				conf.fdnum = atoi(index);
+		}
+		return;
+
+	}
+	else {
+		syslog(LOG_DAEMON|LOG_ERR,"open configuration file failed\n");
+		exit(1);
 	}
 }
 

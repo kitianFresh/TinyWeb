@@ -19,7 +19,9 @@
 #include <signal.h>
 #include <pthread.h>
 #include <semaphore.h>
-
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <syslog.h>
 /* Default file permissions are DEF_MODE & ~DEF_UMASK */
 /* $begin createmasks */
 #define DEF_MODE   S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH
@@ -39,6 +41,7 @@ extern char **environ; /* Defined by libc */
 #define	MAXLINE	 8192  /* Max text line length */
 #define MAXBUF   8192  /* Max I/O buffer size */
 #define LISTENQ  1024  /* Second argument to listen() */
+
 
 /* POSIX semaphore wrappers */
 void Sem_init(sem_t *sem, int pshared, unsigned int value);
@@ -94,6 +97,7 @@ off_t Lseek(int fildes, off_t offset, int whence);
 void Close(int fd);
 int Select(int  n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, 
 			   struct timeval *timeout);
+int Dup(int oldfd);
 int Dup2(int fd1, int fd2);
 void Stat(const char *filename, struct stat *buf);
 void Fstat(int fd, struct stat *buf) ;
@@ -103,6 +107,8 @@ void Fstat(int fd, struct stat *buf) ;
 DIR *Opendir(const char *name);
 struct dirent *Readdir(DIR *dirp);
 int Closedir(DIR *dirp);
+int Chdir(const char *path);
+int Getrlimit(int resource, struct rlimit *rlim);
 
 /* Memory mapping wrappers */
 void *Mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);

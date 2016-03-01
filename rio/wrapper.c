@@ -309,6 +309,14 @@ int Select(int  n, fd_set *readfds, fd_set *writefds,
     return rc;
 }
 
+int Dup(int oldfd)
+{
+	int rc;
+	if ((rc = dup(oldfd)) < 0)
+		unix_error("Dup error");
+	return rc;
+}
+
 int Dup2(int fd1, int fd2) 
 {
     int rc;
@@ -361,6 +369,21 @@ int Closedir(DIR *dirp)
     if ((rc = closedir(dirp)) < 0)
         unix_error("closedir error");
     return rc;
+}
+
+int Chdir(const char *path)
+{
+	int rc;
+	if ((rc = chdir(path)) < 0)
+		unix_error("chdir error");
+	return rc;
+}
+int Getrlimit(int resource, struct rlimit *rlim)
+{
+	int rc;
+	if ((rc = getrlimit(resource,rlim)) < 0)
+		unix_error("getrlimit error");
+	return rc;
 }
 
 /***************************************

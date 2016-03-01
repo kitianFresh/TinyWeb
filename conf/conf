@@ -1,0 +1,8 @@
+#this is a conf test
+
+#note that no other space character between key and value except '=' #
+port=8888
+logpath=./weblog/log
+nthreads=8   
+   fdnum=32       
+#end

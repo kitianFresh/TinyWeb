@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <netdb.h>
+#include <syslog.h>
 void unix_error(char* msg);
 
 void posix_error(int code, char* msg);

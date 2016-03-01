@@ -3,6 +3,7 @@
 #define NTHREADS 8
 #define SBUFSIZE 32
 
+void daemonize(const char *name);
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
@@ -30,40 +31,86 @@ int main(int argc, char **argv){
 		fprintf(stderr, "usage: %s <port>\n", argv[0]);
 		exit(1);
 	}
+	daemonize("tiny");
 	port = argv[1];
-	logfd = Open("./weblog/logs.txt", 
+	logfd = Open("/home/kitian/csapp/Tiny_MultiThread/weblog/logs.txt", 
 		O_APPEND | O_CREAT | O_RDWR, DEF_MODE & ~DEF_UMASK);
-	Dup2(logfd,STDOUT_FILENO);
+	//Dup2(logfd,STDOUT_FILENO);
 	
 	sbuf_init(&sbuf, SBUFSIZE);
 	listenfd = Open_listenfd(port);
 	clientlen = sizeof(clientaddr);
 	
-	fprintf(stdout, "Tiny started at port %s\n\n", port);
+	syslog(LOG_DAEMON|LOG_INFO, "Tiny started at port %s\n\n", port);
 	for (i = 0; i < NTHREADS; i++) {	/* Create worker threads */
 		Pthread_create(&tid, NULL, thread, NULL);
-		fprintf(stdout, "Tiny create thread %ld\n", (unsigned long)tid);
+		syslog(LOG_DAEMON|LOG_INFO, "Tiny create thread %ld\n", (unsigned long)tid);
 	}
-	fflush(stdout);
+	//fflush(stdout);
 	while(1){
 		connfd = Accept(listenfd, (SA*)&clientaddr, &clientlen);
 		Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, 
                     portclient, MAXLINE, 0);
-        	printf("Accepted connection from (%s, %s)\n", hostname, portclient);
+        	syslog(LOG_DAEMON|LOG_INFO,"Accepted connection from (%s, %s)\n", hostname, portclient);
 		sbuf_insert(&sbuf, connfd);
 	}
 }
+
+void daemonize(const char *name){
+	int i, fd0, fd1, fd2;
+	pid_t pid;
+	struct rlimit rl;
+
+	/* Clear file creation mask */
+	umask(0);
+
+	/* Get maximum number of file descriptors */
+	Getrlimit(RLIMIT_NOFILE, &rl);
+
+	/* Become a session leader to lose controlling TTY */
+	if ((pid = Fork()) != 0) exit(0); /* Parent exit */
+	setsid();
+
+	/* Ensure future opens won't allocate contorlling TTYs */
+	Signal(SIGHUP, SIG_IGN);
+	if ((pid = Fork()) != 0) exit(0); /* Parent exit*/
+
+	/* Change the current working directory to the root so 
+	 * we won't prevent file systems from being unmounted.
+	 */
+	Chdir("/home/kitian/csapp/Tiny_MultiThread");
+
+	/* Close all open file descriptors. because 0 1 2 opened at least */
+	if (RLIM_INFINITY == rl.rlim_max)
+		rl.rlim_max = 1024;
+	for (i = 0; i < rl.rlim_max; i++)
+		close(i);
+
+	/* Attach file descriptors 0 1 and 2 to /dev/null */
+	fd0 = open("/dev/null", O_RDWR);
+	fd1 = Dup(0);
+	fd2 = Dup(0);
+
+	/* Initialize the log file. */
+	openlog(name, LOG_CONS | LOG_PID, LOG_DAEMON);
+	if (fd0 !=0 || fd1 != 1 || fd2 != 2){
+		syslog(LOG_ERR, "unexpected file descriptors %d %d %d",
+				fd0, fd1, fd2);
+		exit(1);
+	}
+}
+
 void *thread(void *vargp){
 	int connfd;
 	Pthread_detach(Pthread_self());/* detach itself from main thread */
 	while(1) { 
 		connfd = sbuf_remove(&sbuf);/* Remove connfd from buffer */
-		fprintf(stdout, "Thread %ld dispose connfd %d\n",(unsigned long)Pthread_self(),connfd);
+		syslog(LOG_DAEMON|LOG_INFO, "Thread %ld dispose connfd %d\n",(unsigned long)Pthread_self(),connfd);
 		doit(connfd);				/* Service client */
-		fflush(stdout);
 		Close(connfd);				/* Clear client fd */
 	}
 }
+
 void doit(int fd){
 	int is_static;
 	struct stat sbuf;
@@ -108,10 +155,9 @@ void doit(int fd){
 void read_requesthdrs(rio_t *rp){
 	char buf[MAXLINE];
 
-	//fprintf(stdout, "Tiny read request header:\n");
 	while(strcmp(buf, "\r\n")){
 		Rio_readlineb(rp, buf, MAXLINE);
-		fprintf(stdout, "%s", buf);
+		syslog(LOG_DAEMON|LOG_INFO, "%s", buf);
 	}
 	return;
 }
@@ -220,13 +266,12 @@ void handler(int sig){
 	pid_t pid;
 	int status;
 	while ((pid = Waitpid(-1,&status,WNOHANG | WUNTRACED)) > 0){
-		printf("Handler reaped child %d\n", (int)pid);
+		syslog(LOG_DAEMON|LOG_INFO,"Handler reaped child %d\n", (int)pid);
 		if (WIFEXITED(status))
-			printf("child %d terminated normally with exit status=%d\n",pid,WEXITSTATUS(status));
+			syslog(LOG_DAEMON|LOG_INFO,"child %d terminated normally with exit status=%d\n",pid,WEXITSTATUS(status));
 		else
-			printf("child %d terminated abnormally\n",pid);
+			syslog(LOG_DAEMON|LOG_INFO,"child %d terminated abnormally\n",pid);
 	}
 	
-	//Sleep(2);
 	return;
 }

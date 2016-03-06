@@ -26,6 +26,7 @@ Q1总是出现waitpid error:no child process?
 
 2016-02-24 
 Notes:建立分支，使用IO的多路复用替代多进程并发服务器
+	进程并发开销太大，虽然代码简单且地址空间相互独立，但是不便于共享变量。改用IO复用，可以在一个单一进程中完成多个逻辑程序执行流，还能共享变量和地址空间，当然代码复杂一些，还会造成DDOS攻击；因为IO复用在一个进程中一个单一的循环中，一旦客户端恶意攻击造成主线程永远阻塞在read中，那么就无法未其他客户服务了
 Q1:请求动态内容时，select系统调用总是被中断？
     因为父进程注册了信号处理函数，捕获了信号，导致系统调用被中断；解决办法是在设置信号的时候用SA_RESTART设置系统调用中断自重启，或者手动判断errno重启；当然还有忽略信号（让系统不产生信号中断）；不过自动重启并不是所有的系统调用都可以，依赖于不同的系统，man 7 signal查看本机上select系统调用就不支持自动重启，因此必须手动重启；
 Interruption of system calls and library functions by signal handlers
@@ -58,3 +59,57 @@ Q1:出现Broken pipe错误？
     对一个对端已经关闭的socket调用两次write, 第二次将会生成SIGPIPE信号, 该信号默认结束进程.具体的分析可以结合TCP的"四次握手"关闭. TCP是全双工的信道, 可以看作两条单工信道, TCP连接两端的两个端点各负责一条. 当对端调用close时, 虽然本意是关闭整个两条信道, 但本端只是收到FIN包. 按照TCP协议的语义, 表示对端只是关闭了其所负责的那一条单工信道, 仍然可以继续接收数据. 也就是说, 因为TCP协议的限制, 一个端点无法获知对端的socket是调用了close还是shutdown.对一个已经收到FIN包的socket调用read方法, 如果接收缓冲已空, 则返回0, 这就是常说的表示连接关闭. 但第一次对其调用write方法时, 如果发送缓冲没问题, 会返回正确写入(发送). 但发送的报文会导致对端发送RST报文, 因为对端的socket已经调用了close, 完全关闭, 既不发送, 也不接收数据. 所以, 第二次调用write方法(假设在收到RST之后), 会生成SIGPIPE信号, 导致进程退出.
     因此需要捕获并处理该信号，同时查看write系统调用是否有EPIPE错误；
 
+2016-02-26
+Notes1:线程池技术prethreading；
+    	PV同步的生产消费者模型提供线程安全的缓冲区；主线程作为生产者不断监听产生新的已连接fd，写入缓冲区；各个工作线程等待缓冲区的fd取走处理；所谓预线程技术，就是在服务器启动的时候就创建一批线程，他们相互竞争的从缓冲区中取走fd；
+	之所以初始时就创建线程池，是因为尽管线程比进程开销更小，但是当并发量突然上来的时候，再一个个创建还是会很慢，如果线程已经准备就绪，只等任务出现，那么并发很大的时候就减少了线程创建时间；从而提高响应速度；当然还可以根据并发量动态的调整线程池的线程总数，以便更灵活的适应不同场景；但是线程池也有瓶颈，那就是内存开销和长连接阻塞，试想当所有的并发都是处理长连接，那么线程池中的线程都会阻塞死，当再有新连接出现时，大家只能眼巴巴的看着只流口水，但是自己却无能为力。此时只能再增加线程池的容量，再创建一批新秀，如此以来，大家一出来就阻塞，还未实战拳脚就阻塞了，一批又一批，占着内存不做事，然后内存就受不了了。
+	因此更高级的是每个线程中使用非阻塞IO或者异步IO，当没有数据来的时候，线程就暂时先不执行这个任务，保存好状态，转而执行新的连接任务，这样就增强了每个工作线程的复用性，不造成阻塞。也就是线程池+异步IO的并发服务
+
+Notes2:设计DNS函数gethostbyname和gethostbyaddr协议无关和可重入函数getaddrinfo
+
+2016-02-27
+Notes1:
+1.TCP连接终止的发生条件：
+	其实是内核检测到sockfd的引用计数变为0（这包括显示close或者由内核回收子进程）,对close的默认调用只会让sockfd减1,如果是进程多并发服务器，那么父进程Accept这个连接符后，必须关闭他，这样工作进程处理完成后close的时候才能真正关闭sockfd，让内核检测到该连接的终止；
+2.close函数默认是调用后就返回；
+	在基于TCP的应用中，如果这么草率的关闭连接，可能会发生数据丢失。因为TCP的一个连接是双全工的，如果不做其他处理直接调用close，应用程序自己压根就不知道下面的TCP数据还有没有发送完（因为这一层对应用层是透明的），内核检测到后就会以为要关闭整个连接，此时应用进程中对该sockfd的read或write调用都无法使用了（因为sockfd关闭）也就是两个方向都终止，但是TCP会尝试发送已经等待排队的数据，并发送FIN来进行四次握手，但是此时应用进程可能退出了，虽然TCP是可靠的连接，但注意这个可靠只是TCP这一层次，也就是保证剩下的数据到达了对端主机对应端口号的接收缓冲区，但是对端（例如服务器）应用进程（应用层）可能还未对数据处理就漰溃了，但是客户端应用一无所知。要想让客户端知道服务端已经正确接受并处理了数据，解决办法就是使用另一个函数shutdown(int sockfd,int howto)而不是close；shutdown可以半关闭双全工（即只关闭其中一个方向），例如可以通过shutdown(fd,SHUT_WR)来关闭 客户端-->服务端 写入方向的单一通道，此时客户端虽然不能write了，但还可以继续read，如果客户端能够读到EOF(也就是服务端发来FIN导致的)，那就说明服务端已经正确的处理了数据，并关闭；如果客户端还能读到数据，那说明服务端还有数据发送；
+	可以通过setsockopt来设置socketet options(SO_LINGER），这样可以重新选择close函数的调用行为；下面是close函数和shutdown的相关状态；
+
+Notes2:
+	Tiny目前对HTTP相应报头的支持很少，比如长连接，pipelining，Tiny对每一个HTTP请求都是直接处理后立即就关闭fd从而引发FIN进行连接释放，这样所有的HTTP请求都要重新建立和释放连接，不支持长连接会导致频繁TCP建立时三次握手和释放时四次握手，开销很大；而HTTP中的Connection中keep-alive就是为了解决这个问题，这样可以在同一个TCP套结字保持激活状态下发送多个HTTP请求而不用建立和释放连接；这样还可以在同一个连接下还能进行Request/Response的双全工流水线；唯一要解决的问题就是如何在同一个TCP连接不中断的情况下判断一个HTTP数据回应是否发送完成。方法根据请求对象分为静态内容处理和动态内容处理，请求静态内容是，服务器可以预先知道大小，通过Content-length返回给客户端，客户端更具该值来判断是否接收完毕；请求动态内容，由于服务器不能预先知道内容大小，所以要使用Chunked-Body。
+参见http://www.cnblogs.com/skynet/archive/2010/12/11/1903347.html
+http://tools.ietf.org/html/rfc2616#page-44
+http://www.cnblogs.com/cswuyg/p/3653263.html
+
+2016-02-29
+Notes1:Tiny从shell运行，但是当shell关闭后，Tiny就被迫终止了，因为Tiny和shell在同一个会话中，会话首进程终止会导致该会话所有进程终止，让Tiny作为守护进程运行，并且从配置文件读取相关参数运行服务器，由于守护进程没有控制终端，出错记录（日志）通过syslog输出到syslogd守护进程；
+	进程关系；session，group，process；每一个session和这个session的前台进程组与终端相联系，接受输入输出；
+	守护进程deamons的实现：执行权限，后台运行，脱离控制终端；
+	要实现daemon，就必须让他后台运行，但是单纯的&命令不行，因为他还是属于登陆shell这个session中，并没有脱离控制，shell退出，session就退出，因此必须fork出子进程，此时子进程变成新的组中的一个非组长进程(这是调用setsid()的前提)，但是他还在这个会话中，因此调用setsid()成为一个新session leader，同时他还是这个session中唯一的group leader，process。session有权限分配到终端，因此为了让守护进程完全脱离终端，我们再一次调用fork，让子进程成为新的session的一个组，这样他就完全脱离了控制，然后关闭所有描述符，重定向0 1 2 到/dev/null，以防止他们被分配到终端设备；
+	DESCRIPTION
+       setsid()  creates a new session if the calling process is not a process
+       group leader.  The calling process is the leader of  the  new  session,
+       the  process group leader of the new process group, and has no control‐
+       ling terminal.  The process group ID and  session  ID  of  the  calling
+       process are set to the PID of the calling process.  The calling process
+       will be the only process in this new process group and in this new ses‐
+       sion.
+	NOTES
+       A child created via fork(2) inherits its parent's session ID.  The ses‐
+       sion ID is preserved across an execve(2).
+       A process group leader is a process with process group ID equal to  its
+       PID.   In  order  to  be  sure  that setsid() will succeed, fork(2) and
+       _exit(2), and have the child do setsid().
+
+
+
+
+Notes: umask 是unmask(num)的意思，在原来的777(-rwxrwxrwx)的基础上 777 & ~num得到新的权限
+APUE上的例子总是失败？
+	原来是因为在关闭所有描述符时调用了Close，在wrapper里这个对close的封装是，如果调用成功返回rc，不成功会自动退出；因此关闭所有的描述符会出问题，因为有些描述符本身并没有打开；APUE上为只是调用close，因为即使close返回-1,也不会退出；
+	但是改为close后，对 0 1 2的重新赋值总是出现unexpected file descriptors 1 2 3错误;可以知道是fd使用了1 2 3,可是所有的fd都关闭后，第一次打开应该是最小的0,原来是syslog的首次调用会打开fd用来和syslogd通讯；删除先前的syslog函数的调用即可；
+	守护进程需要最好以超级权限运行，否则可能出现访问权限问题；syslogd的配置文件rsysconf和/var/log下的log文件也设置成和rsyslogd相同的权限才能使rsyslogd访问
+
+2012-03-01
+Q：为什么引入非阻塞IO？可以通过设置选项来说明read write是阻塞还是非阻塞式的；
+	阻塞IO就是对他的调用会一直阻塞到那，知道调用任务完成；但是这样就会导致这个整个程序阻塞，不能响应其他任务(如在响应图形用户界面时处理网络请求)；此时可以让IO的调用立即返回（尽管任务没有完成），由应用程序自己来判断什么时候处理完，而不是像阻塞IO那样完全交给内核然后等待阻塞；当然多线程也可以起到同样的作用；

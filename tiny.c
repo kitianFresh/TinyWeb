@@ -212,7 +212,7 @@ void doit(int fd){
 		clienterror(fd, method, "501", "Not Implemented", "Tiny has not implemented this method yet, you can tell kikifly");
 		return;
 	}
-	fprintf(stdout, "%s", buf);
+	syslog(LOG_DAEMON|LOG_INFO, "Request Line:%s", buf);
 	read_requesthdrs(&rio);
 
 	/* Parse URI from GET request */
@@ -228,6 +228,7 @@ void doit(int fd){
 			return;
 		}
 		serve_static(fd, filename, sbuf.st_size);
+		syslog(LOG_DAEMON|LOG_INFO, "serve_static finished\n");
 	}
 	else {
 		if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
@@ -281,7 +282,7 @@ void serve_static(int fd, char *filename, int filesize){
 	/* Send response line and headers to client */
 	get_filetype(filename, filetype);
 	sprintf(buf, "HTTP/1.1 200 OK\r\n");
-	sprintf(buf, "%sServer: Tiny Web Server by kikifly\r\n", buf);
+	sprintf(buf, "%sServer: Tiny Web Server by kikifly,static\r\n", buf);
 	sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
 	sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
 	Rio_writen(fd, buf, strlen(buf));
@@ -313,7 +314,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs){
 	/* Return first part of HTTP response */
 	sprintf(buf, "HTTP/1.1 200 OK\r\n");
 	Rio_writen(fd, buf, strlen(buf));
-	sprintf(buf, "Server: Tiny Web Server by kikifly\r\n");
+	sprintf(buf, "Server: Tiny Web Server by kikifly,dynamic\r\n");
 	Rio_writen(fd, buf, strlen(buf));
 	
 	
@@ -335,7 +336,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 	sprintf(body, "%s<body bgcolor=""ff0000"">\r\n", body);
 	sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
 	sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-	sprintf(body, "%s<hr><em>The Tiny Web server By kikifly</em>\r\n", 
+	sprintf(body, "%s<hr><em>The Tiny Web server By kikifly,clienterror</em>\r\n", 
 			body);
 
 	/*Print the HTTP response */
